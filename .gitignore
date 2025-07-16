@@ -1,0 +1,26 @@
+# === OS / Editor Files ===
+*.swp
+*.swo
+*.swn
+*.bak
+*.tmp
+Thumbs.db
+.DS_Store
+.idea/
+.vscode/
+*.iml
+
+# === Coverage / Testing ===
+coverage/
+*.cover
+*.py,cover
+.hypothesis/
+
+# === Logs ===
+*.log
+
+# === Lint/Formatting ===
+.cache/
+.prettierignore
+.eslintcache
+.stylelintcache
