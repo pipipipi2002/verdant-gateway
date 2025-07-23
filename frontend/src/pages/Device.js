@@ -14,8 +14,10 @@ const Device = ({ deviceId }) => {
     const [streamingVideo, setStreamingVideo] = useState(false);
     const [selectedMetric, setSelectedMetric] = useState('soil_temperature');
     const [showChart, setShowChart] = useState(false);
-    const [wsClient, setWsClient] = useState(null);
+    const [wsTelClient, setWsTelClient] = useState(null);
     const [liveData, setLiveData] = useState(null);
+    const [lastUpdated, setLastUpdated] = useState(null);
+    const [isRefreshing, setIsRefreshing] = useState(false);
 
     // Config state
     const [telemetryInterval, setTelemetryInterval] = useState(60);
@@ -26,35 +28,55 @@ const Device = ({ deviceId }) => {
         
         // Set up WebSocket for live telemetry
         const ws = new WebSocketClient();
-        setWsClient(ws);
+        setWsTelClient(ws);
         
         ws.connectTelemetry(deviceId, (data) => {
             setLiveData(data);
+            setLastUpdated(new Date());
             // Add to history
             setTelemetryHistory(prev => [...prev.slice(-99), data]);
         });
 
+        const interval = setInterval(() => {
+            fetchDeviceData(true);
+        }, 30000);
+
         return () => {
             ws.disconnect();
+            clearInterval(interval);
         };
     }, [deviceId]);
 
-    const fetchDeviceData = async () => {
+    const fetchDeviceData = async (isRefresh = false) => {
         try {
+            if (!isRefresh) {
+                setLoading(true);
+            } else {
+                setIsRefreshing(true);
+            }
+            setError(null);
+            
             const [deviceData, history] = await Promise.all([
                 apiClient.getDeviceDetail(deviceId),
                 apiClient.getTelemetryHistory(deviceId, 24)
             ]);
-        
+            
             setDevice(deviceData);
             setTelemetryHistory(history);
             setTelemetryInterval(deviceData.telemetry_interval);
             setSnapshotInterval(deviceData.snapshot_interval);
+            
+            if (isRefresh) {
+                setLastUpdated(new Date());
+            }
         } catch (err) {
-            setError('Failed to load device data');
+            if (!isRefresh) {
+                setError('Failed to load device data');
+            }
             console.error(err);
         } finally {
             setLoading(false);
+            setIsRefreshing(false);
         }
     };
 
@@ -81,6 +103,9 @@ const Device = ({ deviceId }) => {
 
     const toggleVideoStream = () => {
         setStreamingVideo(!streamingVideo);
+        if (streamingVideo) {
+            
+        }
     };
 
     if (loading) {
@@ -95,6 +120,12 @@ const Device = ({ deviceId }) => {
         return (
             <div className="text-center py-12">
                 <p className="text-red-600">{error || 'Device not found'}</p>
+                <button
+                    onClick={fetchDeviceData}
+                    className="mt-4 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 mr-3"
+                >
+                    Retry
+                </button>
                 <button
                     onClick={() => route('/')}
                     className="mt-4 px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
@@ -133,6 +164,9 @@ const Device = ({ deviceId }) => {
                         device.status === 'offline' ? 'bg-red-500' : 'bg-yellow-500'
                     }`}>
                         {device.status.toUpperCase()}
+                        {isRefreshing && (
+                            <span className="ml-2 inline-block animate-spin">↻</span>
+                        )}
                     </div>
                 </div>
 
@@ -260,11 +294,16 @@ const Device = ({ deviceId }) => {
                     
                         <div className="grid grid-cols-2 gap-4">
                             {Object.entries({
-                                'Soil Temperature': currentTelemetry.soil_temperature || 'N/A',
-                                'Soil Humidity': currentTelemetry.soil_humidity || 'N/A',
-                                'CO2 Level': currentTelemetry.co2 || 'N/A',
-                                'Device Temperature': currentTelemetry.device_temperature || 'N/A',
-                                'Device Humidity': currentTelemetry.device_humidity || 'N/A',
+                                'Soil Temperature': currentTelemetry.soil_temperature ? 
+                                `${parseFloat(currentTelemetry.soil_temperature).toFixed(2)}°C` : 'N/A',
+                                'Soil Humidity': currentTelemetry.soil_humidity ? 
+                                `${parseFloat(currentTelemetry.soil_humidity).toFixed(2)}%` : 'N/A',
+                                'CO2 Level': currentTelemetry.co2 ? 
+                                `${parseFloat(currentTelemetry.co2).toFixed(2)} ppm` : 'N/A',
+                                'Device Temperature': currentTelemetry.device_temperature ? 
+                                `${parseFloat(currentTelemetry.device_temperature).toFixed(2)}°C` : 'N/A',
+                                'Device Humidity': currentTelemetry.device_humidity ? 
+                                `${parseFloat(currentTelemetry.device_humidity).toFixed(2)}%` : 'N/A',
                                 'Status': currentTelemetry.status || 'N/A'
                             }).map(([label, value]) => (
                                 <div key={label} className="bg-gray-50 rounded p-3">

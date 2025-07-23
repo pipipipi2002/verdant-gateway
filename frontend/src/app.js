@@ -20,7 +20,13 @@ const App = () => {
 
     const checkConnection = async () => {
         try {
-            const response = await fetch('http://localhost:8000/health');
+            // This pings the backend for response.
+            const response = await fetch('http://localhost:8000/health', {
+                method: 'GET',
+                mode: 'cors',
+                cache: 'no-cache',
+            });
+
             if (response.ok) {
                 setConnectionStatus('local');
             } else {

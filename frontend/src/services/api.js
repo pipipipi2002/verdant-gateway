@@ -2,19 +2,34 @@ const API_BASE_URL = 'http://localhost:8000/api/v1';
 
 class ApiClient {
     async request(url, options = {}) {
-        const response = await fetch(`${API_BASE_URL}${url}`, {
-            ...options,
-            headers: {
-                'Content-Type': 'application/json',
-                ...options.headers,
-            },
-        });
+        try {
+            const response = await fetch(`${API_BASE_URL}${url}`, {
+                ...options,
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...options.headers,
+                },
+            });
 
         if (!response.ok) {
-            throw new Error(`API Error: ${response.status} ${response.statusText}`);
-        }
+            if (response.status === 404) {
+                throw new Error('Resource not found');
+            } else if (response.status === 500) {
+                throw new Error('Server error. Please try again later.');
+            } else if (response.status === 0 || !response.status) {
+                throw new Error('Cannot connect to server. Please check if the backend is running.');
+            }
+                throw new Error(`API Error: ${response.status} ${response.statusText}`);
+            }
 
-        return response.json();
+            return response.json();
+        } catch (error) {
+            // Handle network errors
+            if (error instanceof TypeError && error.message === 'Failed to fetch') {
+                throw new Error('Cannot connect to server. Please check if the backend is running.');
+            }
+            throw error;
+        }
     }
 
     // Farms

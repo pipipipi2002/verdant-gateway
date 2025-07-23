@@ -7,11 +7,13 @@ export class WebSocketClient {
     }
 
     connectTelemetry(deviceId, onMessage, options = {}) {
+        console.log("[WEBSOCKET.JS] Connecting to telemetry WS");
         const url = `ws://localhost:8000/api/v1/ws/telemetry/${deviceId}`;
         this.connect(url, onMessage, options);
     }
 
     connectVideo(deviceId, onMessage, options = {}) {
+        console.log("[WEBSOCKET.JS] Connecting to Video WS");
         const url = `ws://localhost:8000/api/v1/ws/video/${deviceId}`;
         this.connect(url, onMessage, options);
     }
@@ -21,7 +23,7 @@ export class WebSocketClient {
             this.ws = new WebSocket(url);
 
             this.ws.onopen = () => {
-                console.log('WebSocket connected');
+                console.log('>>> WebSocket connected');
                 this.reconnectAttempts = 0;
                 if (options.onOpen) options.onOpen();
                 

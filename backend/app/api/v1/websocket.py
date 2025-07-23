@@ -3,6 +3,7 @@ from typing import Dict, Set
 import asyncio
 import json
 import logging
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -129,21 +130,30 @@ async def websocket_video(websocket: WebSocket, device_id: str):
         frame_count = 0
         
         while True:
-            # In production, this would relay actual video frames from the device
-            # For simulation, send a frame counter
-            
-            frame_data = json.dumps({
-                "type": "frame",
-                "device_id": device_id,
-                "frame": frame_count,
-                "timestamp": datetime.now().isoformat()
-            })
-            
-            await websocket.send_text(frame_data)
-            
-            frame_count += 1
-            await asyncio.sleep(0.033)  # ~30 FPS
+            # Check if websocket is still connected
+            try: 
+
+                # In production, this would relay actual video frames from the device
+                # For simulation, send a frame counter
+                
+                frame_data = {
+                    "type": "frame",
+                    "device_id": device_id,
+                    "frame": frame_count,
+                    "timestamp": datetime.now().isoformat()
+                }
+                
+                await websocket.send_json(frame_data)
+                
+                frame_count += 1
+                await asyncio.sleep(0.033)  # ~30 FPS
+            except Exception as e:
+                logger.error(f"Error sending video frame: {e}")
+                break
             
     except WebSocketDisconnect:
-        websocket_manager.disconnect_video(device_id)
         logger.info(f"Video WebSocket disconnected for device {device_id}")
+    except Exception as e:
+        logger.error(f"Video WebSocket error: {e}")
+    finally:
+        websocket_manager.disconnect_video(device_id)

@@ -78,11 +78,11 @@ const DeviceCard = ({ device, latestTelemetry }) => {
                             <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
                                 <div>
                                     <span className="text-gray-500">Temp:</span>
-                                    <span className="ml-1 font-medium">{latestTelemetry.soil_temperature}°C</span>
+                                    <span className="ml-1 font-medium">{latestTelemetry.soil_temperature.toFixed(2)}°C</span>
                                 </div>
                                 <div>
                                     <span className="text-gray-500">Humidity:</span>
-                                    <span className="ml-1 font-medium">{latestTelemetry.soil_humidity}%</span>
+                                    <span className="ml-1 font-medium">{latestTelemetry.soil_humidity.toFixed(2)}%</span>
                                 </div>
                             </div>
                         )}
@@ -105,11 +105,11 @@ const DeviceCard = ({ device, latestTelemetry }) => {
                                 <>
                                 <div>
                                     <span className="text-gray-500">CO2:</span>
-                                    <p className="font-medium">{latestTelemetry.co2} ppm</p>
+                                    <p className="font-medium">{latestTelemetry.co2.toFixed(2)} ppm</p>
                                 </div>
                                 <div>
                                     <span className="text-gray-500">Device Temp:</span>
-                                    <p className="font-medium">{latestTelemetry.device_temperature}°C</p>
+                                    <p className="font-medium">{latestTelemetry.device_temperature.toFixed(2)}°C</p>
                                 </div>
                                 </>
                             )}

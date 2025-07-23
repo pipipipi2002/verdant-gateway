@@ -12,6 +12,8 @@ const VideoStream = ({ deviceId, onClose }) => {
         const ws = new WebSocketClient();
         wsRef.current = ws;
 
+        console.log("Connecting to video ws");
+
         ws.connectVideo(deviceId, (data) => {
             // TODO In production, this would handle actual video frames
             // For now, just update frame count
@@ -22,6 +24,8 @@ const VideoStream = ({ deviceId, onClose }) => {
             onOpen: () => setConnected(true),
             onClose: () => setConnected(false)
         });
+
+        console.log("Connected(?)");
 
         return () => {
             if (wsRef.current) {

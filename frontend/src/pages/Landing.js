@@ -7,6 +7,7 @@ const Landing = () => {
     const [farms, setFarms] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [lastUpdated, setLastUpdated] = useState(null);
 
     useEffect(() => {
         fetchFarms();
@@ -14,8 +15,12 @@ const Landing = () => {
 
     const fetchFarms = async () => {
         try {
+            setLoading(true);
+            setError(null);
+      
             const data = await apiClient.getFarms();
             setFarms(data);
+            setLastUpdated(new Date());
         } catch (err) {
             setError('Failed to load farms');
             console.error(err);
@@ -23,6 +28,10 @@ const Landing = () => {
             setLoading(false);
         }
     };
+
+    const handleRefresh = () => {
+        fetchFarms();
+    }
 
     if (loading) {
         return (
@@ -48,14 +57,38 @@ const Landing = () => {
 
     return (
         <div>
-            <div className="mb-6">
-                <h2 className="text-2xl font-bold text-gray-900">Farms</h2>
-                <p className="text-gray-600 mt-1">Monitor and manage your plant farms</p>
+            <div className="mb-6 flex justify-between items-center">
+                <div>
+                    <h2 className="text-2xl font-bold text-gray-900">Farms</h2>
+                    <p className="text-gray-600 mt-1">Monitor and manage your plant farms</p>
+                </div>
+                <div className="flex items-center space-x-4">
+                    {lastUpdated && (
+                        <p className="text-xs text-gray-500">
+                        Last updated: {lastUpdated.toLocaleTimeString()}
+                        </p>
+                    )}
+                    <button
+                        onClick={handleRefresh}
+                        disabled={loading}
+                        className="flex items-center px-3 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <svg 
+                        className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} 
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                        >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Refresh
+                    </button>
+                </div>
             </div>
 
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                 {farms.map(farm => (
-                    <FarmCard key={farm.id} farm={farm} />
+                <FarmCard key={farm.id} farm={farm} />
                 ))}
             </div>
 
