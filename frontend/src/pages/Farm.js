@@ -1,4 +1,4 @@
-import { h } from 'preact';
+import { h, Fragment } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
 import { route } from 'preact-router';
 import DeviceCard from '../components/DeviceCard';

@@ -37,6 +37,16 @@ export class WebSocketClient {
 
             this.ws.onmessage = (event) => {
                 try {
+                    if (event.data === 'pong') {
+                        console.log("Received pong");
+                        return;
+                    } else if (event.data === 'ping') {
+                        if (this.ws.readyState === WebSocket.OPEN) {
+                            this.ws.send('pong');
+                        }
+                        return;
+                    } 
+
                     const data = JSON.parse(event.data);
                     onMessage(data);
                 } catch (e) {

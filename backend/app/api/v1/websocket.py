@@ -1,4 +1,5 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException
+from starlette.websockets import WebSocketState
 from typing import Dict, Set
 import asyncio
 import json
@@ -101,15 +102,28 @@ async def websocket_telemetry(websocket: WebSocket, device_id: str):
         
         # Keep connection alive
         while True:
-            # Wait for client messages (ping/pong)
-            message = await websocket.receive_text()
+            try:
+                # Wait for client messages (ping/pong)
+                message = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+
+                if message == "ping":
+                    await websocket.send_text("pong")
+                
             
-            if message == "ping":
-                await websocket.send_text("pong")
+            except asyncio.TimeoutError:
+                # Send ping to check if client is still alive
+                try: 
+                    await websocket.send_text("ping")
+                except Exception:
+                    break
                 
     except WebSocketDisconnect:
-        websocket_manager.disconnect_telemetry(websocket, device_id)
         logger.info(f"Telemetry WebSocket disconnected for device {device_id}")
+    except Exception as e:
+        logger.error(f"Telemetry WebsSocket Error: {e}")
+    finally:
+        websocket_manager.disconnect_telemetry(websocket, device_id)
+
 
 @router.websocket("/video/{device_id}")
 async def websocket_video(websocket: WebSocket, device_id: str):
@@ -124,6 +138,19 @@ async def websocket_video(websocket: WebSocket, device_id: str):
         
     await websocket_manager.connect_video(websocket, device_id)
     
+    # TODO: Notify device to start sending video
+    logger.info(f"Starting video stream for device {device_id}")
+    try:
+        await mqtt_bridge.publish(
+            f"devices/{device_id}/commands",
+            {
+                "command": "start_stream",
+                "parameters": {"quality": "high", "fps": 30}
+            }
+        )
+    except Exception as e:
+        logger.error(f"Failed to notify device to start streaming: {e}")
+
     try:
         # TODO: Subscribe to video stream from device
         # For now, simulate video frames
@@ -132,6 +159,10 @@ async def websocket_video(websocket: WebSocket, device_id: str):
         while True:
             # Check if websocket is still connected
             try: 
+                # Check connection status
+                if websocket.client_state != WebSocketState.CONNECTED:
+                    logger.info(f"Client disconnected from video stream for device {device_id}")
+                    break
 
                 # In production, this would relay actual video frames from the device
                 # For simulation, send a frame counter
@@ -147,8 +178,26 @@ async def websocket_video(websocket: WebSocket, device_id: str):
                 
                 frame_count += 1
                 await asyncio.sleep(0.033)  # ~30 FPS
+            
+            except WebSocketDisconnect:
+                logger.info(f"Client closed video stream for device {device_id}")
+                break
+            except RuntimeError as e:
+                # Handle runtime errors like "Cannot call send() on a closed WebSocket"
+                if "closed" in str(e).lower():
+                    logger.info(f"Video stream connection closed for device {device_id}")
+                else:
+                    logger.error(f"Runtime error in video stream: {e}")
+                break
             except Exception as e:
-                logger.error(f"Error sending video frame: {e}")
+                # Check if it's a connection closed error by examining the error message
+                error_msg = str(e).lower()
+                if any(word in error_msg for word in ["close", "disconnect", "broken"]):
+                    logger.info(f"Video stream ended for device {device_id}")
+                elif type(e).__name__ == "ClientDisconnected":
+                    logger.info(f"Video stream ended for device {device_id}")
+                else:
+                    logger.error(f"Error sending video frame: {type(e).__name__}: {e}")
                 break
             
     except WebSocketDisconnect:
@@ -156,4 +205,24 @@ async def websocket_video(websocket: WebSocket, device_id: str):
     except Exception as e:
         logger.error(f"Video WebSocket error: {e}")
     finally:
+        # Clean up shutdown procedures
+        logger.info(f"Cleaning up video stream for device {device_id}")
+
+        # Disconnect from manager
         websocket_manager.disconnect_video(device_id)
+
+        # Notify device to stop streaming
+        # TODO: Send MQTT command to device
+        try:
+            await mqtt_bridge.publish(
+                f"devices/{device_id}/commands",
+                {
+                    "command": "stop_stream",
+                    "parameters": {}
+                }
+            )
+            logger.info(f"Notified device {device_id} to stop streaming")
+
+        except Exception as e:
+            logger.error(f"Failed to notify device to stop streaming: {e}")
+        
