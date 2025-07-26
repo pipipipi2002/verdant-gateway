@@ -1,6 +1,6 @@
 import asyncio
 import psutil
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict
 
 class GatewayMonitor:
@@ -13,9 +13,9 @@ class GatewayMonitor:
             "disk_percent": 0.0,
             "network_io": {"sent": 0, "recv": 0},
             "uptime_hours": 0.0,
-            "last_updated": datetime.now()
+            "last_updated": datetime.now(timezone.utc)
         }
-        self.start_time = datetime.now()
+        self.start_time = datetime.now(timezone.utc)
         self._monitoring = False
     
     async def start_monitoring(self):
@@ -50,10 +50,10 @@ class GatewayMonitor:
                 }
                 
                 # Uptime
-                uptime = datetime.now() - self.start_time
+                uptime = datetime.now(timezone.utc) - self.start_time
                 self.metrics["uptime_hours"] = uptime.total_seconds() / 3600
                 
-                self.metrics["last_updated"] = datetime.now()
+                self.metrics["last_updated"] = datetime.now(timezone.utc)
                 
             except Exception as e:
                 print(f"Monitoring error: {e}")

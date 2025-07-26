@@ -2,31 +2,26 @@
 Development server runner for the Plant Monitoring System
 """
 import uvicorn
+import sys
+import os
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from app.utils.logging_config import setup_logging
+from app.config import settings
+
+logger = setup_logging(settings.log_level)
 
 if __name__ == "__main__":
+    log_config = uvicorn.config.LOGGING_CONFIG
+    log_config["formatters"]["default"]["fmt"] = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    log_config["formatters"]["access"]["fmt"] = '%(asctime)s - %(name)s - %(levelname)s - %(client_addr)s - "%(request_line)s" %(status_code)s'
+
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",
         port=8000,
         reload=True,
-        log_level="info"
+        log_config=log_config,
+        log_level=settings.log_level.lower()
     )
-
-# backend/app/__init__.py
-"""Plant Monitoring System Backend"""
-__version__ = "1.0.0"
-
-# backend/app/api/__init__.py
-# Empty file to make this a package
-
-# backend/app/api/v1/__init__.py
-# Empty file to make this a package
-
-# backend/app/models/__init__.py
-# Empty file to make this a package
-
-# backend/app/services/__init__.py
-# Empty file to make this a package
-
-# backend/app/utils/__init__.py
-# Empty file to make this a package

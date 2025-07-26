@@ -2,30 +2,28 @@ from fastapi import APIRouter, HTTPException
 from typing import List
 
 from app.models.farm import Farm, FarmDetail
-from app.services.data_store import data_store
-from app.utils.monitoring import GatewayMonitor
+from app.services.database import db_service
 
 router = APIRouter()
 
 @router.get("/", response_model=List[Farm])
 async def get_farms():
     """Get all farms"""
-    return list(data_store.farms.values())
+    return await db_service.get_farms()
 
 @router.get("/{farm_id}", response_model=FarmDetail)
 async def get_farm(farm_id: str):
     """Get farm details"""
-    if farm_id not in data_store.farms:
+    farm = await db_service.get_farm(farm_id)
+    if not farm:
         raise HTTPException(status_code=404, detail="Farm not found")
-    
-    farm = data_store.farms[farm_id]
     
     # Get gateway metrics
     from app.main import gateway_monitor
     metrics = await gateway_monitor.get_metrics()
     
     # Count telemetry entries today
-    total_telemetry = sum(len(entries) for entries in data_store.telemetry.values())
+    total_telemetry = 0
     
     return FarmDetail(
         **farm.model_dump(),

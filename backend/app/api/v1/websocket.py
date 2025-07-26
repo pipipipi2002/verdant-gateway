@@ -4,7 +4,7 @@ from typing import Dict, Set
 import asyncio
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -82,24 +82,19 @@ class WebSocketManager:
 @router.websocket("/telemetry/{device_id}")
 async def websocket_telemetry(websocket: WebSocket, device_id: str):
     """WebSocket endpoint for real-time telemetry"""
-    from app.main import websocket_manager, mqtt_bridge
+    from app.main import websocket_manager
+    from app.services.database import db_service
     
     # Verify device exists
-    from app.services.data_store import data_store
-    if device_id not in data_store.devices:
+    device = await db_service.get_device(device_id)
+    
+    if not device:
         await websocket.close(code=1008, reason="Device not found")
         return
         
     await websocket_manager.connect_telemetry(websocket, device_id)
     
     try:
-        # Subscribe to MQTT telemetry updates
-        async def on_telemetry(topic: str, payload: dict):
-            if payload.get("device_id") == device_id:
-                await websocket_manager.broadcast_telemetry(device_id, payload)
-                
-        await mqtt_bridge.subscribe(f"devices/{device_id}/telemetry", on_telemetry)
-        
         # Keep connection alive
         while True:
             try:
@@ -128,11 +123,12 @@ async def websocket_telemetry(websocket: WebSocket, device_id: str):
 @router.websocket("/video/{device_id}")
 async def websocket_video(websocket: WebSocket, device_id: str):
     """WebSocket endpoint for video streaming relay"""
-    from app.main import websocket_manager, mqtt_bridge
+    from app.main import websocket_manager
+    from app.services.database import db_service
     
     # Verify device exists
-    from app.services.data_store import data_store
-    if device_id not in data_store.devices:
+    device = await db_service.get_device(device_id)
+    if not device:
         await websocket.close(code=1008, reason="Device not found")
         return
         
@@ -141,7 +137,9 @@ async def websocket_video(websocket: WebSocket, device_id: str):
     # TODO: Notify device to start sending video
     logger.info(f"Starting video stream for device {device_id}")
     try:
-        await mqtt_bridge.publish(
+        from app.services.mqtt_client import mqtt_client
+        logger.info(f"Seding MQTT message to start stream")
+        await mqtt_client.publish(
             f"devices/{device_id}/commands",
             {
                 "command": "start_stream",
@@ -171,7 +169,7 @@ async def websocket_video(websocket: WebSocket, device_id: str):
                     "type": "frame",
                     "device_id": device_id,
                     "frame": frame_count,
-                    "timestamp": datetime.now().isoformat()
+                    "timestamp": datetime.now(timezone.utc).isoformat()
                 }
                 
                 await websocket.send_json(frame_data)
@@ -212,9 +210,11 @@ async def websocket_video(websocket: WebSocket, device_id: str):
         websocket_manager.disconnect_video(device_id)
 
         # Notify device to stop streaming
-        # TODO: Send MQTT command to device
         try:
-            await mqtt_bridge.publish(
+            from app.services.mqtt_client import mqtt_client
+            logger.info(f"Seding MQTT message to stop stream")
+
+            await mqtt_client.publish(
                 f"devices/{device_id}/commands",
                 {
                     "command": "stop_stream",

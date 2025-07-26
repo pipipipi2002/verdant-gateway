@@ -1,8 +1,11 @@
 import asyncio
 import json
 from typing import Callable, Dict, List
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
+
+from app.models.telemetry import TelemetryData
+from app.services.data_store import data_store
 
 logger = logging.getLogger(__name__)
 
@@ -12,24 +15,81 @@ class MQTTBridge:
     def __init__(self):
         self.subscribers: Dict[str, List[Callable]] = {}
         self.connected = False
+        self._telemetry_task = None
         
     async def start(self):
         """Start MQTT connection. TODO: Connect to actual MQTT broker"""
         logger.info("Starting MQTT bridge (simulated)")
         self.connected = True
-        
+
+        # Subscribe to all device telemetry topics
+        await self.subscribe("devices/+/telemetry", self._handle_telemetry)
+        await self.subscribe("devices/+/status", self._handle_status)
+
         # Simulate incoming messages
-        asyncio.create_task(self._simulate_mqtt_messages())
+        self._telemetry_task = asyncio.create_task(self._simulate_mqtt_messages())
+
+        logger.info("MQTT bridge started and subscribed to all device topics")
     
     async def stop(self):
         """Stop MQTT connection"""
         self.connected = False
+
+        if self._telemetry_task:
+            self._telemetry_task.cancel()
+            try:
+                await self._telemetry_task
+            except asyncio.CancelledError:
+                pass
+
         logger.info("Stopped MQTT bridge")
+
+    async def _handle_telemetry(self, topic: str, payload: Dict):
+        try:
+            # Convert to TelemetryData model
+            telemetry = TelemetryData(
+                device_id=payload["device_id"],
+                timestamp=datetime.fromisoformat(payload["timestamp"]),
+                soil_humidity=payload["soil_humidity"],
+                soil_temperature=payload["soil_temperature"],
+                co2=payload["co2"],
+                device_temperature=payload["device_temperature"],
+                device_humidity=payload["device_humidity"],
+                status=payload["status"]
+            )
+
+            # Store in database
+            await data_store.add_telemetry(telemetry)
+
+            # Notify WebSocket subscribers
+            await self._notify_subscribers(topic, payload) #ERROR??? SHould be to websocket
+
+            logger.debug(f"Processes telemetry for device {telemetry.device_id}")
+
+        except Exception as e:
+            logger.error(f"Error handling telemetry: {e}")
+
+    async def _handle_status(self, topic: str, payload: Dict):
+        """Handle secice status updates"""
+        try:
+            device_id = payload["device_id"]
+            status = payload["status"]
+
+            # Update device status in database
+            from app.services.database import db_service
+            from app.models.device import DeviceStatus
+
+            await db_service.update_device_status(device_id, DeviceStatus(status))
+
+            logger.info(f"Device {device_id} status updated to {status}")
+        
+        except Exception as e:
+            logger.error(f"Error handling status update: {e}")
     
     async def publish(self, topic: str, payload: Dict):
         """Publish to MQTT topic. TODO: Use actual MQTT client"""
         logger.info(f"Publishing to {topic}: {payload}")
-        
+
         # TODO: Replace with actual MQTT publish
         # await self.mqtt_client.publish(topic, json.dumps(payload))
     
@@ -40,35 +100,45 @@ class MQTTBridge:
         
         self.subscribers[topic].append(callback)
         logger.info(f"Subscribed to {topic}")
+
+        # TODO: Actually subscribe with MQTT client
+        # await self.mqtt_client.subscribe(topic)
     
     async def _simulate_mqtt_messages(self):
         """Simulate MQTT messages. TODO: Remove when actual MQTT is connected"""
         import random
         
         while self.connected:
-            # Simulate telemetry from devices
-            for i in range(1, 6):
-                if random.random() > 0.8:  # 20% chance to skip
-                    continue
-                    
-                device_id = f"device-{i:03d}"
-                topic = f"devices/{device_id}/telemetry"
+            try:
+                # Get all devices from database
+                from app.services.database import db_service
+                devices = await db_service.get_devices()
+
+                # Simulate telemetry from online devices
+                for device in devices:
+                    if device.status == "online" and random.random() > 0.2:
+                        device_id = device.id
+                        topic = f"devices/{device_id}/telemetry"
+                        
+                        payload = {
+                            "device_id": device_id,
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "soil_humidity": random.uniform(40, 80),
+                            "soil_temperature": random.uniform(20, 30),
+                            "co2": random.uniform(350, 450),
+                            "device_temperature": random.uniform(25, 35),
+                            "device_humidity": random.uniform(50, 70),
+                            "status": "normal"
+                        }
+                        
+                        # Process as if it came from MQTT
+                        await self._handle_telemetry(topic, payload)
                 
-                payload = {
-                    "device_id": device_id,
-                    "timestamp": datetime.now().isoformat(),
-                    "soil_humidity": random.uniform(40, 80),
-                    "soil_temperature": random.uniform(20, 30),
-                    "co2": random.uniform(350, 450),
-                    "device_temperature": random.uniform(25, 35),
-                    "device_humidity": random.uniform(50, 70),
-                    "status": "normal"
-                }
-                
-                # Notify subscribers
-                await self._notify_subscribers(topic, payload)
-            
-            await asyncio.sleep(10)  # Simulate every 10 seconds
+                await asyncio.sleep(10)  # Simulate every 10 seconds
+
+            except Exception as e:
+                logger.error(f"Error in MQTT simulation: {e}")
+                await asyncio.sleep(10)
     
     async def _notify_subscribers(self, topic: str, payload: Dict):
         """Notify all subscribers of a topic"""

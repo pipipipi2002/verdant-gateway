@@ -1,10 +1,15 @@
 import asyncio
 from typing import Dict, List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
+import logging
 
 from app.models.device import Device, DeviceStatus
 from app.models.telemetry import DeviceCommand
 from app.services.data_store import data_store
+from app.services.database import db_service
+from app.services.mqtt_client import mqtt_client
+
+logger = logging.getLogger(__name__)
 
 class DeviceManager:
     """Manages device lifecycle and commands"""
@@ -16,41 +21,6 @@ class DeviceManager:
     async def initialize_dummy_data(self):
         """Initialize dummy data in the data store"""
         await data_store.initialize_dummy_data()
-        
-        # Start device simulation tasks
-        for device_id, device in data_store.devices.items():
-            if device.status == DeviceStatus.ONLINE:
-                self.device_tasks[device_id] = asyncio.create_task(
-                    self._simulate_device(device_id)
-                )
-    
-    async def _simulate_device(self, device_id: str):
-        """Simulate device telemetry. TODO: Remove when real devices connect"""
-        import random
-        from app.models.telemetry import TelemetryData
-        
-        while True:
-            device = data_store.devices.get(device_id)
-            if not device or device.status != DeviceStatus.ONLINE:
-                break
-                
-            # Generate telemetry
-            telemetry = TelemetryData(
-                device_id=device_id,
-                timestamp=datetime.now(),
-                soil_humidity=random.uniform(40, 80),
-                soil_temperature=random.uniform(20, 30),
-                co2=random.uniform(350, 450),
-                device_temperature=random.uniform(25, 35),
-                device_humidity=random.uniform(50, 70),
-                status="normal"
-            )
-            
-            await data_store.add_telemetry(telemetry)
-            
-            # TODO: Publish to MQTT for WebSocket relay
-            
-            await asyncio.sleep(device.telemetry_interval)
     
     async def send_command(self, device_id: str, command: DeviceCommand) -> bool:
         """Queue command for device. TODO: Send via MQTT"""
@@ -60,25 +30,47 @@ class DeviceManager:
         self.command_queue[device_id].append(command)
         
         # TODO: Publish to MQTT topic devices/{device_id}/commands
-        
+        await mqtt_client.publish(
+            f"devices/{device_id}/commands",
+            {
+                "command": command.command,
+                "parameters": command.parameters,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+        )
         return True
     
     async def update_device_config(self, device_id: str, config: Dict) -> bool:
         """Update device configuration"""
-        if device_id in data_store.devices:
-            device = data_store.devices[device_id]
-            
-            if "telemetry_interval" in config:
-                device.telemetry_interval = config["telemetry_interval"]
-            if "snapshot_interval" in config:
-                device.snapshot_interval = config["snapshot_interval"]
-                
-            # TODO: Send config update via MQTT
-            
-            return True
-        return False
+        device = await db_service.get_device(device_id)
+        if not device:
+            return False
+        
+        #TODO: Update in db
+        await mqtt_client.publish(
+            f"devices/{device_id}/config",
+            {
+                **config,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            },
+            retain=True
+        )
+        
+        return True
     
     async def register_device(self, device: Device) -> bool:
         """Register new device. TODO: Implement provisioning"""
-        data_store.devices[device.id] = device
-        return True
+        try:
+            async with db_service.pool.acquire() as conn:
+                await conn.execute('''
+                    INSERT INTO devices (id, farm_id, name, plant_name, status, last_seen, 
+                                    telemetry_interval, snapshot_interval, location, firmware_version)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                ''', device.id, device.farm_id, device.name, device.plant_name, 
+                    device.status.value, device.last_seen, device.telemetry_interval,
+                    device.snapshot_interval, device.location, device.firmware_version)
+            
+            return True
+        except Exception as e:
+            logger.error(f"Error registering device: {e}")
+            return False
