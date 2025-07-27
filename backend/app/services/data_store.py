@@ -7,7 +7,7 @@ import logging
 
 from app.models.farm import Farm, ConnectionStatus
 from app.models.device import Device, DeviceStatus
-from app.models.telemetry import TelemetrySoilData, TelemetryInternalData, TelemetryEnvironmentData, TelemetryData
+from app.models.telemetry import TelemetryData
 from app.services.database import db_service
 
 logger = logging.getLogger(__name__)

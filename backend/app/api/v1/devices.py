@@ -33,12 +33,15 @@ async def get_device(device_id: str):
     
     if latest_telemetry:
         current_telemetry = {
-            "soil_humidity": f"{latest_telemetry.soil_humidity:.1f}%",
-            "soil_temperature": f"{latest_telemetry.soil_temperature:.1f}°C",
+            "env_temperature": f"{latest_telemetry.env_temperature:.1f}°C",
+            "humidity": f"{latest_telemetry.humidity:.1f}%",
+            "pressure": f"{latest_telemetry.pressure:.1f} hPa",
+            "light": f"{latest_telemetry.light:.0f} lux",
             "co2": f"{latest_telemetry.co2:.0f} ppm",
-            "device_temperature": f"{latest_telemetry.device_temperature:.1f}°C",
-            "device_humidity": f"{latest_telemetry.device_humidity:.1f}%",
-            "status": latest_telemetry.status
+            "voc": f"{latest_telemetry.voc:.0f} ppb",
+            "soil_temperature": f"{latest_telemetry.soil_temperature:.1f}°C",
+            "soil_moisture": f"{latest_telemetry.soil_moisture:.1f}%",
+            "soil_ph": f"{latest_telemetry.soil_ph:.2f}"
         }
     
 # Calculate uptime

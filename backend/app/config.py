@@ -22,12 +22,9 @@ class Settings(BaseSettings):
     mqtt_user: str = "admin"
     mqtt_pass: str = "admin"
     mqtt_topics: Dict[str, str] = {
-        "telemetry_internal": "devices/+/telemetry/int",
-        "telemetry_env": "devices/+/telemetry/env",
-        "telemetry_soil": "devices/+/telemetry/soil",
+        "telemetry": "devices/+/telemetry",
+        "commands": "devices/+/commands",
         "status": "devices/+/status",
-        "snapshot": "devices/+/snapshot",
-        "video_metadata": "devices/+/video/metadata",
         "alerts": "devices/+/alerts"
     }
 

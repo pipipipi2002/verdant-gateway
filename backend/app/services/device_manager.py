@@ -29,7 +29,6 @@ class DeviceManager:
         
         self.command_queue[device_id].append(command)
         
-        # TODO: Publish to MQTT topic devices/{device_id}/commands
         await mqtt_client.publish(
             f"devices/{device_id}/commands",
             {

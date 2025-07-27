@@ -68,6 +68,15 @@ class WebSocketManager:
         # Clean up dead connections
         for websocket in dead_connections:
             self.disconnect_telemetry(websocket, device_id)
+
+    async def broadcast_status(self, device_id: str, data: dict):
+        """Broadcast device status to all telemetry subscribers"""
+        # Status updates go to telemetry subscribers too
+        await self.broadcast_telemetry(device_id, {
+            "type": "status",
+            "device_id": device_id,
+            "data": data
+        })
             
     async def relay_video_frame(self, device_id: str, frame_data: bytes):
         """Relay video frame to connected client"""
@@ -104,7 +113,6 @@ async def websocket_telemetry(websocket: WebSocket, device_id: str):
                 if message == "ping":
                     await websocket.send_text("pong")
                 
-            
             except asyncio.TimeoutError:
                 # Send ping to check if client is still alive
                 try: 
@@ -118,7 +126,6 @@ async def websocket_telemetry(websocket: WebSocket, device_id: str):
         logger.error(f"Telemetry WebsSocket Error: {e}")
     finally:
         websocket_manager.disconnect_telemetry(websocket, device_id)
-
 
 @router.websocket("/video/{device_id}")
 async def websocket_video(websocket: WebSocket, device_id: str):

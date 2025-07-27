@@ -12,7 +12,7 @@ const Device = ({ deviceId }) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [streamingVideo, setStreamingVideo] = useState(false);
-    const [selectedMetric, setSelectedMetric] = useState('soil_temperature');
+    const [selectedMetric, setSelectedMetric] = useState('env_temperature');
     const [showChart, setShowChart] = useState(false);
     const [wsTelClient, setWsTelClient] = useState(null);
     const [liveData, setLiveData] = useState(null);
@@ -31,10 +31,15 @@ const Device = ({ deviceId }) => {
         setWsTelClient(ws);
         
         ws.connectTelemetry(deviceId, (data) => {
-            setLiveData(data);
-            setLastUpdated(new Date());
-            // Add to history
-            setTelemetryHistory(prev => [...prev.slice(-99), data]);
+            if (data.type === 'status') {
+                // Handle status update
+                console.log('Device status update:', data.data);
+            } else {
+                setLiveData(data);
+                setLastUpdated(new Date());
+                // Add to history
+                setTelemetryHistory(prev => [...prev.slice(-99), data]);    
+            }
         });
 
         const interval = setInterval(() => {
@@ -65,10 +70,7 @@ const Device = ({ deviceId }) => {
             setTelemetryHistory(history);
             setTelemetryInterval(deviceData.telemetry_interval);
             setSnapshotInterval(deviceData.snapshot_interval);
-            
-            if (isRefresh) {
-                setLastUpdated(new Date());
-            }
+            setLastUpdated(new Date());
         } catch (err) {
             if (!isRefresh) {
                 setError('Failed to load device data');
@@ -103,9 +105,6 @@ const Device = ({ deviceId }) => {
 
     const toggleVideoStream = () => {
         setStreamingVideo(!streamingVideo);
-        if (streamingVideo) {
-            
-        }
     };
 
     if (loading) {
@@ -294,17 +293,24 @@ const Device = ({ deviceId }) => {
                     
                         <div className="grid grid-cols-2 gap-4">
                             {Object.entries({
+                                'Environment Temp': currentTelemetry.env_temperature ? 
+                                    `${parseFloat(currentTelemetry.env_temperature).toFixed(2)}°C` : 'N/A',
+                                'Humidity': currentTelemetry.humidity ? 
+                                    `${parseFloat(currentTelemetry.humidity).toFixed(2)}%` : 'N/A',
+                                'Pressure': currentTelemetry.pressure ? 
+                                    `${parseFloat(currentTelemetry.pressure).toFixed(2)} hPa` : 'N/A',
+                                'Light': currentTelemetry.light ? 
+                                    `${parseFloat(currentTelemetry.light).toFixed(0)} lux` : 'N/A',
+                                'CO2': currentTelemetry.co2 ? 
+                                    `${parseFloat(currentTelemetry.co2).toFixed(0)} ppm` : 'N/A',
+                                'VOC': currentTelemetry.voc ? 
+                                    `${parseFloat(currentTelemetry.voc).toFixed(0)} ppb` : 'N/A',
                                 'Soil Temperature': currentTelemetry.soil_temperature ? 
-                                `${parseFloat(currentTelemetry.soil_temperature).toFixed(2)}°C` : 'N/A',
-                                'Soil Humidity': currentTelemetry.soil_humidity ? 
-                                `${parseFloat(currentTelemetry.soil_humidity).toFixed(2)}%` : 'N/A',
-                                'CO2 Level': currentTelemetry.co2 ? 
-                                `${parseFloat(currentTelemetry.co2).toFixed(2)} ppm` : 'N/A',
-                                'Device Temperature': currentTelemetry.device_temperature ? 
-                                `${parseFloat(currentTelemetry.device_temperature).toFixed(2)}°C` : 'N/A',
-                                'Device Humidity': currentTelemetry.device_humidity ? 
-                                `${parseFloat(currentTelemetry.device_humidity).toFixed(2)}%` : 'N/A',
-                                'Status': currentTelemetry.status || 'N/A'
+                                    `${parseFloat(currentTelemetry.soil_temperature).toFixed(2)}°C` : 'N/A',
+                                'Soil Moisture': currentTelemetry.soil_moisture ? 
+                                    `${parseFloat(currentTelemetry.soil_moisture).toFixed(2)}%` : 'N/A',
+                                'Soil pH': currentTelemetry.soil_ph ? 
+                                    `${parseFloat(currentTelemetry.soil_ph).toFixed(2)}` : 'N/A'
                             }).map(([label, value]) => (
                                 <div key={label} className="bg-gray-50 rounded p-3">
                                     <p className="text-sm text-gray-500">{label}</p>
@@ -325,11 +331,15 @@ const Device = ({ deviceId }) => {
                                 onChange={(e) => setSelectedMetric(e.target.value)}
                                 className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                             >
+                                <option value="env_temperature">Environment Temperature</option>
+                                <option value="humidity">Humidity</option>
+                                <option value="pressure">Pressure</option>
+                                <option value="light">Light</option>
+                                <option value="co2">CO2</option>
+                                <option value="voc">VOC</option>
                                 <option value="soil_temperature">Soil Temperature</option>
-                                <option value="soil_humidity">Soil Humidity</option>
-                                <option value="co2">CO2 Level</option>
-                                <option value="device_temperature">Device Temperature</option>
-                                <option value="device_humidity">Device Humidity</option>
+                                <option value="soil_moisture">Soil Moisture</option>
+                                <option value="soil_ph">Soil pH</option>
                             </select>
                         </div>
 

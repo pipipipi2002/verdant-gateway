@@ -5,39 +5,15 @@ from typing import Optional, Dict, Any
 class TelemetryData(BaseModel):
     device_id: str
     timestamp: datetime
-    soil_humidity: float  # percentage
-    soil_temperature: float  # celsius
-    co2: float  # ppm
-    device_temperature: float  # celsius
-    device_humidity: float  # percentage
-    status: str
-
-class TelemetryInternalData(BaseModel):
-    device_id: str
-    timestamp: datetime
-    temperature: float  # celsius
-    humidity: float  # percentage
-    batt: float # voltage
-    status: str
-
-class TelemetryEnvironmentData(BaseModel):
-    device_id: str
-    timestamp: datetime
-    temperature: float
-    humidity: float
-    pressure: float
-    light: float
-    co2: float
-    voc: float
-    status: str
-
-class TelemetrySoilData(BaseModel):
-    device_id: str
-    timestamp: datetime
-    temperature: float
-    moisture: float
-    ph: float
-    status: str
+    env_temperature: float      # Environmental temperature (celsius)
+    humidity: float             # Environmental humidity (percentage)
+    pressure: float             # Atmospheric pressure (hPa)
+    light: float                # Light intensity (lux)
+    co2: float                  # CO2 concentration (ppm)
+    voc: float                  # Volatile Organic Compounds (ppb)
+    soil_temperature: float     # Soil temperature (celsius)
+    soil_moisture: float        # Soil moisture (percentage)
+    soil_ph: float              # Soil pH value
     
 class TelemetryUpdate(BaseModel):
     telemetry_interval: Optional[int] = None

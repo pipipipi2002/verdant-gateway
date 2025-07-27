@@ -1,13 +1,15 @@
 import asyncio
 import json
 import logging
+import uuid
 from typing import Callable, Dict, List, Optional
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import paho.mqtt.client as mqtt
 from concurrent.futures import ThreadPoolExecutor
 
 from app.config import settings
 from app.models.telemetry import TelemetryData
+from app.models.status import DeviceStatusData
 from app.services.data_store import data_store
 
 logger = logging.getLogger(__name__)
@@ -21,6 +23,7 @@ class MQTTClient:
         self.subscribers: Dict[str, List[Callable]] = {}
         self.executor = ThreadPoolExecutor(max_workers=1)
         self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self.device_status_cache: Dict[str, Dict] = {} # In-memory cache for real-time status
         
     async def start(self):
         """Start MQTT client and connect to broker"""
@@ -66,7 +69,7 @@ class MQTTClient:
         except Exception as e:
             logger.error(f"Failed to start MQTT client: {e}")
             raise
-    
+
     async def stop(self):
         """Stop MQTT client"""
         if self.client:
@@ -198,15 +201,18 @@ class MQTTClient:
             telemetry = TelemetryData(
                 device_id=device_id,
                 timestamp=datetime.fromisoformat(payload["timestamp"]) if "timestamp" in payload else datetime.now(timezone.utc),
-                soil_humidity=payload["soil_humidity"],
-                soil_temperature=payload["soil_temperature"],
+                env_temperature=payload["env_temperature"],
+                humidity=payload["humidity"],
+                pressure=payload["pressure"],
+                light=payload["light"],
                 co2=payload["co2"],
-                device_temperature=payload["device_temperature"],
-                device_humidity=payload["device_humidity"],
-                status=payload.get("status", "normal")
+                voc=payload["voc"],
+                soil_temperature=payload["soil_temperature"],
+                soil_moisture=payload["soil_moisture"],
+                soil_ph=payload["soil_ph"]
             )
 
-            logger.info(f"Received telemetry from MQTT: {telemetry}")
+            logger.info(f"Received MQTT Telemetry from device {device_id} of time {telemetry.timestamp}")
             
             # Store in database
             await data_store.add_telemetry(telemetry)
@@ -229,20 +235,41 @@ class MQTTClient:
                 parts = topic.split("/")
                 if len(parts) >= 3:
                     device_id = parts[1]
-            
+
             if not device_id:
                 logger.error(f"No device_id found in status message")
                 return
             
-            status = payload.get("status", "offline")
-            
-            # Update device status in database
+            # Update in-memory cache for real-time display
+            self.device_status_cache[device_id] = payload
+
+            # Convert to DeviceStatusData model
+            status_data = DeviceStatusData(
+                device_id=device_id,
+                timestamp=datetime.fromisoformat(payload["timestamp"]) if "timestamp" in payload else datetime.now(timezone.utc),
+                status=payload.get("status", "offline"),
+                firmware_version=payload.get("firmware_version", ""),
+                ip_address=payload.get("ip_address", ""),
+                uptime_seconds=payload.get("uptime_seconds", 0),
+                rssi=payload.get("rssi", 0),
+                error_code=payload.get("error_code", 0),
+                error_message=payload.get("error_message", ""),
+                free_memory=payload.get("free_memory"),
+                internal_temperature=payload.get("internal_temperature", 0.0),
+                internal_humidity=payload.get("internal_humidity", 0.0),
+                battery_level=payload.get("battery_level")
+            )
+
+            # Store in database for history
             from app.services.database import db_service
-            from app.models.device import DeviceStatus
-            
-            await db_service.update_device_status(device_id, DeviceStatus(status))
-            
-            logger.info(f"Device {device_id} status updated to {status}")
+            await db_service.add_device_status(status_data)
+
+            # Notify Websocket subscribers
+            from app.main import websocket_manager
+            if websocket_manager:
+                await websocket_manager.broadcast_status(device_id, payload)
+
+            logger.info(f"Device {device_id} status updated: {status_data.status}")
             
         except Exception as e:
             logger.error(f"Error handling status update: {e}")
@@ -293,6 +320,20 @@ class MQTTClient:
         except Exception as e:
             logger.error(f"Error handling discovery: {e}")
     
+    async def send_gateway_ping(self):
+        ping_payload = {
+            "gateway_id": settings.gateway_id,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "request_id": str(uuid.uuid64()),
+            "type:": "status_request"
+        }
+
+        await self.publish("gateway/ping", ping_payload, qos=1, retain=False)
+        logger.info(f"Sent gateway ping: {ping_payload['request_id']}")
+
+        asyncio.create_task(self._cleanup_old_status())
+
+
     def _topic_matches(self, pattern: str, topic: str) -> bool:
         """Check if topic matches pattern with wildcards"""
         pattern_parts = pattern.split('/')
@@ -310,6 +351,30 @@ class MQTTClient:
                 return False
         
         return True
+    
+    async def _cleanup_old_status(self):
+        """Remove devices that don't respond to ping after timeout"""
+        await asyncio.sleep(10)  # Wait for responses
+        
+        cutoff_time = datetime.now(timezone.utc) - timedelta(seconds=10)
+        offline_devices = []
+        
+        for device_id, status in self.device_status_cache.items():
+            status_time = datetime.fromisoformat(status.get("timestamp", "2000-01-01T00:00:00Z"))
+            if status_time < cutoff_time:
+                offline_devices.append(device_id)
+        
+        # Mark devices as offline if they didn't respond
+        for device_id in offline_devices:
+            self.device_status_cache[device_id] = {
+                "device_id": device_id,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "status": "offline",
+                "error_code": 99,
+                "error_message": "No response to gateway ping"
+            }
+            logger.warning(f"Device {device_id} marked offline - no ping response")
+
 
 # Global instance
 mqtt_client = MQTTClient()

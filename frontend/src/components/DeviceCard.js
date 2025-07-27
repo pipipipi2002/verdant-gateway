@@ -77,12 +77,12 @@ const DeviceCard = ({ device, latestTelemetry }) => {
                         {latestTelemetry && (
                             <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
                                 <div>
-                                    <span className="text-gray-500">Temp:</span>
-                                    <span className="ml-1 font-medium">{latestTelemetry.soil_temperature.toFixed(2)}°C</span>
+                                    <span className="text-gray-500">Soil Moisture :</span>
+                                    <span className="ml-1 font-medium">{latestTelemetry.soil_moisture.toFixed(1)}%</span>
                                 </div>
                                 <div>
-                                    <span className="text-gray-500">Humidity:</span>
-                                    <span className="ml-1 font-medium">{latestTelemetry.soil_humidity.toFixed(2)}%</span>
+                                    <span className="text-gray-500">Env Temp:</span>
+                                    <span className="ml-1 font-medium">{latestTelemetry.env_temperature.toFixed(1)}°C</span>
                                 </div>
                             </div>
                         )}
@@ -104,12 +104,12 @@ const DeviceCard = ({ device, latestTelemetry }) => {
                             {latestTelemetry && (
                                 <>
                                 <div>
-                                    <span className="text-gray-500">CO2:</span>
-                                    <p className="font-medium">{latestTelemetry.co2.toFixed(2)} ppm</p>
+                                    <span className="text-gray-500">Soil Temp:</span>
+                                    <p className="font-medium">{latestTelemetry.soil_temperature.toFixed(1)}°C</p>
                                 </div>
                                 <div>
-                                    <span className="text-gray-500">Device Temp:</span>
-                                    <p className="font-medium">{latestTelemetry.device_temperature.toFixed(2)}°C</p>
+                                    <span className="text-gray-500">Env Humidity:</span>
+                                    <p className="font-medium">{latestTelemetry.humidity.toFixed(1)}%</p>
                                 </div>
                                 </>
                             )}

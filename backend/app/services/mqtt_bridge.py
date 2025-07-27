@@ -19,7 +19,7 @@ class MQTTBridge:
         
     async def start(self):
         """Start MQTT connection. TODO: Connect to actual MQTT broker"""
-        logger.info("Starting MQTT bridge (simulated)")
+        logger.info("Starting MQTT bridge (simulation)")
         self.connected = True
 
         # Subscribe to all device telemetry topics
@@ -50,12 +50,15 @@ class MQTTBridge:
             telemetry = TelemetryData(
                 device_id=payload["device_id"],
                 timestamp=datetime.fromisoformat(payload["timestamp"]),
-                soil_humidity=payload["soil_humidity"],
-                soil_temperature=payload["soil_temperature"],
+                env_temperature=payload["env_temperature"],
+                humidity=payload["humidity"],
+                pressure=payload["pressure"],
+                light=payload["light"],
                 co2=payload["co2"],
-                device_temperature=payload["device_temperature"],
-                device_humidity=payload["device_humidity"],
-                status=payload["status"]
+                voc=payload["voc"],
+                soil_temperature=payload["soil_temperature"],
+                soil_moisture=payload["soil_moisture"],
+                soil_ph=payload["soil_ph"]
             )
 
             # Store in database
@@ -123,12 +126,15 @@ class MQTTBridge:
                         payload = {
                             "device_id": device_id,
                             "timestamp": datetime.now(timezone.utc).isoformat(),
-                            "soil_humidity": random.uniform(40, 80),
-                            "soil_temperature": random.uniform(20, 30),
+                            "env_temperature": random.uniform(20, 30),
+                            "humidity": random.uniform(50, 70),
+                            "pressure": random.uniform(1000, 1020),
+                            "light": random.uniform(0, 50000),
                             "co2": random.uniform(350, 450),
-                            "device_temperature": random.uniform(25, 35),
-                            "device_humidity": random.uniform(50, 70),
-                            "status": "normal"
+                            "voc": random.uniform(0, 500),
+                            "soil_temperature": random.uniform(18, 28),
+                            "soil_moisture": random.uniform(40, 80),
+                            "soil_ph": random.uniform(6.0, 7.5)
                         }
                         
                         # Process as if it came from MQTT
