@@ -8,6 +8,7 @@ A comprehensive IoT solution for monitoring plant health in agricultural setting
 - **Frontend**: Preact - Lightweight React alternative optimized for edge devices
 - **Real-time Communication**: WebSocket for live telemetry and video streaming
 - **Data Flow**: MQTT → HTTP Bridge → WebSocket → Web UI
+- **Docker services**: TimescaleDB with pgadmin and MQTT Mosquitto broker
 
 ## Features
 
@@ -21,15 +22,17 @@ A comprehensive IoT solution for monitoring plant health in agricultural setting
 - ✅ Responsive web interface
 - ✅ Expandable card UI for progressive disclosure
 - ✅ Historical data visualization with charts
+- ✅ TimescaleDB integration for time-series data
+- ✅ MQTT broker integration for device communication
 
 ### Planned Features
 
-- 🔄 TimescaleDB integration for time-series data
-- 🔄 MQTT broker integration for device communication
 - 🔄 Security layer with JWT authentication
 - 🔄 Data synchronization with cloud server
 - 🔄 Automated backup and recovery
 - 🔄 Device provisioning workflow
+  - Edit plant name from the front end
+- 🔄 Websocket streaming for Device Status
 
 ## Project Structure
 
@@ -49,6 +52,8 @@ plant-monitoring-system/
 │   │   ├── services/     # API and WebSocket clients
 │   │   └── styles/       # CSS files
 │   └── package.json
+├── mosquitto/            # local storage / configuration for mqtt broker
+├── compose.yml           # Docker compose file
 └── README.md
 ```
 
@@ -56,9 +61,20 @@ plant-monitoring-system/
 
 ### Prerequisites
 
+- Docker / Docker compose
 - Python 3.8+
 - Node.js 14+
 - npm or yarn
+
+### Docker Setup
+
+1. Navigate to the root directory (with `compose.yml` in it)
+
+2. Run the docker services:
+
+```bash
+docker compose up
+```
 
 ### Backend Setup
 
