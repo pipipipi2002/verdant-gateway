@@ -445,6 +445,38 @@ class DatabaseService:
                 WHERE id = $2               
                 ''', ip_address, device_id)
 
+    async def register_device(self, device: Device) -> bool:
+        """Register a new device or update existing one"""
+        async with self.pool.acquire() as conn:
+            try:
+                # Try to insert or update on conflict
+                await conn.execute('''
+                    INSERT INTO devices (id, farm_id, name, plant_name, status, last_seen,
+                                       telemetry_interval, snapshot_interval, location, 
+                                       firmware_version, ip_address, created_at, updated_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW())
+                    ON CONFLICT (id) DO UPDATE SET
+                        name = EXCLUDED.name,
+                        plant_name = EXCLUDED.plant_name,
+                        status = EXCLUDED.status,
+                        last_seen = EXCLUDED.last_seen,
+                        telemetry_interval = EXCLUDED.telemetry_interval,
+                        snapshot_interval = EXCLUDED.snapshot_interval,
+                        location = EXCLUDED.location,
+                        firmware_version = EXCLUDED.firmware_version,
+                        ip_address = EXCLUDED.ip_address,
+                        updated_at = NOW()
+                ''', device.id, device.farm_id, device.name, device.plant_name,
+                    device.status.value, device.last_seen, device.telemetry_interval,
+                    device.snapshot_interval, device.location, device.firmware_version,
+                    device.ip_address)
+                
+                logger.info(f"Device {device.id} registered successfully")
+                return True
+                
+            except Exception as e:
+                logger.error(f"Error registering device {device.id}: {e}")
+                return False
 
     # Farm operations
     async def get_farm(self, farm_id: str) -> Optional[Farm]:

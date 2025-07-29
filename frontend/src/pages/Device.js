@@ -19,10 +19,11 @@ const Device = ({ deviceId }) => {
     const [lastUpdated, setLastUpdated] = useState(null);
 
     // Config state
-    const [telemetryInterval, setTelemetryInterval] = useState(60);
-    const [snapshotInterval, setSnapshotInterval] = useState(3600);
+    const [configTelemetryInterval, setConfigTelemetryInterval] = useState(60);
+    const [configSnapshotInterval, setConfigSnapshotInterval] = useState(3600);
 
     useEffect(() => {
+        setLoading(true);
         fetchDeviceData();
         
         // Set up WebSocket for live telemetry
@@ -44,7 +45,7 @@ const Device = ({ deviceId }) => {
 
         const interval = setInterval(() => {
             fetchDeviceData(true);
-        }, 1000);
+        }, 30000);
 
         return () => {
             ws.disconnect();
@@ -63,24 +64,12 @@ const Device = ({ deviceId }) => {
             
             setDevice(deviceData);
             setTelemetryHistory(history);
-            setTelemetryInterval(deviceData.telemetry_interval);
-            setSnapshotInterval(deviceData.snapshot_interval);
             setLastUpdated(new Date());
-            setLoading(false);
         } catch (err) {
-            setLoading(true);
             setError('Failed to load device data');
             console.error(err);
-        }
-    };
-
-    const fetchDeviceInfo = async () => {
-        try {
-            const deviceData = await apiClient.getDeviceDetail(deviceId);
-
-            setDevice(deviceData);
-        } catch (err) {
-            console.error('Failed to fetch device info:', err);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -96,8 +85,8 @@ const Device = ({ deviceId }) => {
     const updateConfig = async () => {
         try {
             await apiClient.updateDeviceConfig(deviceId, {
-                telemetry_interval: telemetryInterval,
-                snapshot_interval: snapshotInterval
+                telemetry_interval: configTelemetryInterval,
+                snapshot_interval: configSnapshotInterval
             });
             alert('Configuration updated successfully');
         } catch (err) {
@@ -313,28 +302,36 @@ const Device = ({ deviceId }) => {
                                     <label className="block text-sm text-gray-600 mb-1">
                                         Telemetry Interval (seconds)
                                     </label>
-                                    <input
-                                        type="number"
-                                        value={telemetryInterval}
-                                        onChange={(e) => setTelemetryInterval(parseInt(e.target.value))}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                        min="10"
-                                        max="3600"
-                                    />
+                                    <div className="flex items-center space-x-3">
+                                        <input
+                                            type="number"
+                                            onChange={(e) => setConfigTelemetryInterval(parseInt(e.target.value))}
+                                            className="flex-1 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            min="10"
+                                            max="3600"
+                                        />
+                                        <span className="text-sm text-gray-500">
+                                            Device: {device.telemetry_interval}s
+                                        </span>
+                                    </div>
                                 </div>
                         
                                 <div>
                                     <label className="block text-sm text-gray-600 mb-1">
                                         Snapshot Interval (seconds)
                                     </label>
-                                    <input
-                                        type="number"
-                                        value={snapshotInterval}
-                                        onChange={(e) => setSnapshotInterval(parseInt(e.target.value))}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                        min="60"
-                                        max="86400"
-                                    />
+                                    <div className="flex items-center space-x-3">
+                                        <input
+                                            type="number"
+                                            onChange={(e) => setConfigSnapshotInterval(parseInt(e.target.value))}
+                                            className="flex-1 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            min="60"
+                                            max="86400"
+                                        />
+                                        <span className="text-sm text-gray-500">
+                                            Device: {device.snapshot_interval}s
+                                        </span>
+                                    </div>
                                 </div>
                         
                                 <button

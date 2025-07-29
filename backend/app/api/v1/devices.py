@@ -3,7 +3,7 @@ from typing import List, Optional
 import base64
 from datetime import datetime, timezone
 
-from app.models.device import Device, DeviceDetail, DeviceStatus
+from app.models.device import Device, DeviceDetail, DeviceStatus, DeviceStatusData
 from app.models.telemetry import TelemetryUpdate, DeviceCommand
 from app.services.database import db_service
 from app.services.data_store import data_store
@@ -29,15 +29,34 @@ async def get_device(device_id: str):
     
     # Get device status from MQTT cache
     from app.services.mqtt_client import mqtt_client
+    device_status = None
     status_info = mqtt_client.device_status_cache.get(device_id, {})
 
-    # TODO: What is the point of getting from cache + database when we can just take all from cache?
-    # Update device status if available in cache
     if status_info:
-        device.status = DeviceStatus(status_info.get("status", "offline"))
-
-    # Get latest device status from database for history
-    device_status = await db_service.get_latest_device_status(device_id)
+        # Update device status if available in cache
+        try: 
+            device_status = DeviceStatusData(
+                device_id=device_id,
+                timestamp=datetime.fromisoformat(status_info.get("timestamp", datetime.now(timezone.utc).isoformat())),
+                status=DeviceStatus(status_info.get("status", "offline")),
+                firmware_version=status_info.get("firmware_version", device.firmware_version),
+                uptime_seconds=status_info.get("uptime_seconds", 0),
+                rssi=status_info.get("rssi", 0),
+                error_code=status_info.get("error_code", 0),
+                error_message=status_info.get("error_message", ""),
+                free_memory=status_info.get("free_memory"),
+                internal_temperature=status_info.get("internal_temperature", 0.0),
+                internal_humidity=status_info.get("internal_humidity", 0.0),
+                battery_level=status_info.get("battery_level")
+            )
+            # Update device status from cache because device cache will have the most updated status
+            device.status = device_status.status
+        except Exception as e:
+            # Fall back to database
+            device_status = await db_service.get_latest_device_status(device_id)
+    else:
+        # No cache, get from database
+        device_status = await db_service.get_latest_device_status(device_id)
 
     # Get latest telemetry
     latest_telemetry = await data_store.get_latest_telemetry(device_id)
