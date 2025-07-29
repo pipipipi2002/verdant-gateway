@@ -46,8 +46,8 @@ const Landing = () => {
             <div className="text-center py-12">
                 <p className="text-red-600">{error}</p>
                 <button
-                onClick={fetchFarms}
-                className="mt-4 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+                    onClick={fetchFarms}
+                    className="mt-4 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
                 >
                     Retry
                 </button>
@@ -79,7 +79,7 @@ const Landing = () => {
                         stroke="currentColor" 
                         viewBox="0 0 24 24"
                         >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                         </svg>
                         Refresh
                     </button>

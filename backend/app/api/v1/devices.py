@@ -27,6 +27,18 @@ async def get_device(device_id: str):
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
     
+    # Get device status from MQTT cache
+    from app.services.mqtt_client import mqtt_client
+    status_info = mqtt_client.device_status_cache.get(device_id, {})
+
+    # TODO: What is the point of getting from cache + database when we can just take all from cache?
+    # Update device status if available in cache
+    if status_info:
+        device.status = DeviceStatus(status_info.get("status", "offline"))
+
+    # Get latest device status from database for history
+    device_status = await db_service.get_latest_device_status(device_id)
+
     # Get latest telemetry
     latest_telemetry = await data_store.get_latest_telemetry(device_id)
     current_telemetry = {}
@@ -44,12 +56,6 @@ async def get_device(device_id: str):
             "soil_ph": f"{latest_telemetry.soil_ph:.2f}"
         }
     
-# Calculate uptime
-    uptime_hours = 0.0
-    if device.status == DeviceStatus.ONLINE:
-        uptime_delta = datetime.now(timezone.utc) - device.last_seen
-        uptime_hours = max(0, 24 - (uptime_delta.total_seconds() / 3600))
-    
     # Count telemetry entries
     telemetry_history = await data_store.get_telemetry_history(device_id, 24)
     telemetry_count = len(telemetry_history)
@@ -57,8 +63,8 @@ async def get_device(device_id: str):
     return DeviceDetail(
         **device.model_dump(),
         current_telemetry=current_telemetry,
+        current_status=device_status,
         commands_available=["restart", "update_config", "capture_snapshot", "start_stream"],
-        uptime_hours=uptime_hours,
         total_telemetry_today=telemetry_count
     )
 
@@ -76,7 +82,6 @@ async def update_device_config(device_id: str, config: TelemetryUpdate):
 
     if not success:
         raise HTTPException(status_code=500, detail="Failed to update configuration")
-    
     
     return {"status": "success", "updated": config_dict}
 

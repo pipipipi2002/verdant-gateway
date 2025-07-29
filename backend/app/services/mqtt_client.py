@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from app.config import settings
 from app.models.telemetry import TelemetryData
-from app.models.status import DeviceStatusData
+from app.models.device import DeviceStatusData, DeviceStatus 
 from app.services.data_store import data_store
 
 logger = logging.getLogger(__name__)
@@ -249,7 +249,6 @@ class MQTTClient:
                 timestamp=datetime.fromisoformat(payload["timestamp"]) if "timestamp" in payload else datetime.now(timezone.utc),
                 status=payload.get("status", "offline"),
                 firmware_version=payload.get("firmware_version", ""),
-                ip_address=payload.get("ip_address", ""),
                 uptime_seconds=payload.get("uptime_seconds", 0),
                 rssi=payload.get("rssi", 0),
                 error_code=payload.get("error_code", 0),

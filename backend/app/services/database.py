@@ -6,9 +6,8 @@ import logging
 
 from app.config import settings
 from app.models.telemetry import TelemetryData
-from app.models.device import Device, DeviceStatus
+from app.models.device import Device, DeviceStatus, DeviceStatusData
 from app.models.farm import Farm
-from app.models.status import DeviceStatusData
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +79,7 @@ class DatabaseService:
                     snapshot_interval INTEGER DEFAULT 3600,
                     location VARCHAR(255),
                     firmware_version VARCHAR(50),
+                    ip_address VARCHAR(45),
                     created_at TIMESTAMPTZ DEFAULT NOW(),
                     updated_at TIMESTAMPTZ DEFAULT NOW()
                 )
@@ -117,7 +117,6 @@ class DatabaseService:
                     timestamp TIMESTAMPTZ NOT NULL,
                     status VARCHAR(20),
                     firmware_version VARCHAR(50),
-                    ip_address VARCHAR(45),
                     uptime_seconds INTEGER,
                     rssi INTEGER,
                     error_code INTEGER,
@@ -211,18 +210,19 @@ class DatabaseService:
                     telemetry_interval=60,
                     snapshot_interval=3600,
                     location=f"Row {i//2 + 1}, Position {i%2 + 1}",
-                    firmware_version="1.0.0"
+                    firmware_version="1.0.0",
+                    ip_address=f"192.168.1.{100+i}" if i != 4 else None
                 )
                 devices.append(device)
                 
                 async with self.pool.acquire() as conn:
                     await conn.execute('''
                         INSERT INTO devices (id, farm_id, name, plant_name, status, last_seen, 
-                                           telemetry_interval, snapshot_interval, location, firmware_version)
-                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                                           telemetry_interval, snapshot_interval, location, firmware_version, ip_address)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
                     ''', device.id, device.farm_id, device.name, device.plant_name, 
                         device.status.value, device.last_seen, device.telemetry_interval,
-                        device.snapshot_interval, device.location, device.firmware_version)
+                        device.snapshot_interval, device.location, device.firmware_version, device.ip_address)
             
             # Generate historical telemetry in batches for better performance
             import random
@@ -230,6 +230,23 @@ class DatabaseService:
             telemetry_batch = []
             
             for device in devices[:4]:  # Only for online devices
+                # Add current device status
+                status = DeviceStatusData(
+                    device_id=device.id,
+                    timestamp=datetime.now(timezone.utc),
+                    status=DeviceStatus.ONLINE,
+                    firmware_version=device.firmware_version,
+                    uptime_seconds=random.randint(3600, 86400),
+                    rssi=random.randint(-80, -40),
+                    error_code=0,
+                    error_message="",
+                    free_memory=random.randint(50000, 200000),
+                    internal_temperature=random.uniform(25, 35),
+                    internal_humidity=random.uniform(30, 50),
+                    battery_level=random.randint(70, 100) if i % 2 == 0 else None
+                )
+                await self.add_device_status(status)
+
                 for hours_ago in range(24, 0, -1):
                     telemetry = TelemetryData(
                         device_id=device.id,
@@ -389,12 +406,12 @@ class DatabaseService:
             try:
                 await conn.execute('''
                     INSERT INTO device_status (device_id, timestamp, status, firmware_version,
-                                             ip_address, uptime_seconds, rssi, error_code,
+                                             uptime_seconds, rssi, error_code,
                                              error_message, free_memory, internal_temperature,
                                              internal_humidity, battery_level)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
                 ''', status.device_id, status.timestamp, status.status, status.firmware_version,
-                    status.ip_address, status.uptime_seconds, status.rssi, status.error_code,
+                    status.uptime_seconds, status.rssi, status.error_code,
                     status.error_message, status.free_memory, status.internal_temperature,
                     status.internal_humidity, status.battery_level)
             except Exception as e:
@@ -419,6 +436,16 @@ class DatabaseService:
                 logger.error(f"Error getting latest device status: {e}")
                 return None
     
+    async def update_device_ip(self, device_id: str, ip_address: str):
+        """Update device IP address"""
+        async with self.pool.acquire() as conn:
+            await conn.execute('''
+                UPDATE devices
+                SET ip_address = $1, updated_at = NOW()
+                WHERE id = $2               
+                ''', ip_address, device_id)
+
+
     # Farm operations
     async def get_farm(self, farm_id: str) -> Optional[Farm]:
         """Get farm by ID"""

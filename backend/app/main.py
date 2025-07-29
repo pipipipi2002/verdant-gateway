@@ -17,14 +17,12 @@ logger = logging.getLogger(__name__)
 
 
 from app.api.v1 import farms, devices, telemetry, websocket
-# from app.services.mqtt_bridge import MQTTBridge
 from app.services.mqtt_client import mqtt_client
 from app.services.device_manager import DeviceManager
 from app.utils.monitoring import GatewayMonitor
 from app.config import settings
 
 # Global instances
-# mqtt_bridge = None
 device_manager = None
 gateway_monitor = None
 websocket_manager = None
@@ -33,7 +31,6 @@ websocket_manager = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    # global mqtt_bridge, device_manager, gateway_monitor, websocket_manager
     global device_manager, gateway_monitor, websocket_manager
     
     # Initilize database connection
@@ -41,7 +38,6 @@ async def lifespan(app: FastAPI):
     await db_service.connect()
 
     # Initialize services
-    # mqtt_bridge = MQTTBridge()
     device_manager = DeviceManager()
     gateway_monitor = GatewayMonitor()
     websocket_manager = websocket.WebSocketManager()
@@ -49,13 +45,14 @@ async def lifespan(app: FastAPI):
     # Start MQTT client
     try:
         await mqtt_client.start()
-        
+
+        # Send initial gateway ping to discover devices
+        # await mqtt_client.send_gateway_ping()
     except Exception as e:
         logger.error(f"Failed to start MQTT client: {e}")
         logger.warning("Continuing without MQTT connection")
     
     # Start background services
-    # asyncio.create_task(mqtt_bridge.start())
     asyncio.create_task(gateway_monitor.start_monitoring())
     
     # Set up dummy data
@@ -64,7 +61,6 @@ async def lifespan(app: FastAPI):
     yield
     
     # Shutdown
-    # await mqtt_bridge.stop()
     await mqtt_client.stop()
     await gateway_monitor.stop_monitoring()
     await db_service.disconnect()

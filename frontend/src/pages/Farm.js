@@ -20,10 +20,14 @@ const Farm = ({ farmId }) => {
                 fetchTelemetry();
             }
         }, 10000); // Telemetry every 10s
+
+        const resourceInterval = setInterval(() => {
+            fetchResourceUsage();
+        }, 15000); // Resource usage every 15s
         
         return () => {
             clearInterval(telemetryInterval);
-            // clearInterval(farmDataInterval);
+            clearInterval(resourceInterval);
         };
     }, [farmId]);
 
@@ -52,6 +56,18 @@ const Farm = ({ farmId }) => {
             console.error(err);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchResourceUsage = async() => {
+        try {
+            const farmData = await apiClient.getFarmDetail(farmId);
+            setFarm(prevFarm => ({
+                ...prevFarm,
+                resource_utilization: farmData.resource_utilization
+            }));
+        } catch (err) {
+            console.error('Failed to fetch resource usage:', err);
         }
     };
 
@@ -96,13 +112,13 @@ const Farm = ({ farmId }) => {
                     onClick={fetchFarmData}
                     className="mt-4 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 mr-3"
                 >
-                Retry
+                    Retry
                 </button>
                 <button
                     onClick={() => route('/')}
                     className="mt-4 px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
                 >
-                Back to Farms
+                    Back to Farms
                 </button>
             </div>
         );

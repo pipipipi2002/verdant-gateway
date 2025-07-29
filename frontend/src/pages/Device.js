@@ -17,7 +17,6 @@ const Device = ({ deviceId }) => {
     const [wsTelClient, setWsTelClient] = useState(null);
     const [liveData, setLiveData] = useState(null);
     const [lastUpdated, setLastUpdated] = useState(null);
-    const [isRefreshing, setIsRefreshing] = useState(false);
 
     // Config state
     const [telemetryInterval, setTelemetryInterval] = useState(60);
@@ -35,6 +34,7 @@ const Device = ({ deviceId }) => {
                 // Handle status update
                 console.log('Device status update:', data.data);
             } else {
+                // Handle telemetry data
                 setLiveData(data);
                 setLastUpdated(new Date());
                 // Add to history
@@ -44,7 +44,7 @@ const Device = ({ deviceId }) => {
 
         const interval = setInterval(() => {
             fetchDeviceData(true);
-        }, 30000);
+        }, 1000);
 
         return () => {
             ws.disconnect();
@@ -52,13 +52,8 @@ const Device = ({ deviceId }) => {
         };
     }, [deviceId]);
 
-    const fetchDeviceData = async (isRefresh = false) => {
+    const fetchDeviceData = async () => {
         try {
-            if (!isRefresh) {
-                setLoading(true);
-            } else {
-                setIsRefreshing(true);
-            }
             setError(null);
             
             const [deviceData, history] = await Promise.all([
@@ -71,14 +66,21 @@ const Device = ({ deviceId }) => {
             setTelemetryInterval(deviceData.telemetry_interval);
             setSnapshotInterval(deviceData.snapshot_interval);
             setLastUpdated(new Date());
-        } catch (err) {
-            if (!isRefresh) {
-                setError('Failed to load device data');
-            }
-            console.error(err);
-        } finally {
             setLoading(false);
-            setIsRefreshing(false);
+        } catch (err) {
+            setLoading(true);
+            setError('Failed to load device data');
+            console.error(err);
+        }
+    };
+
+    const fetchDeviceInfo = async () => {
+        try {
+            const deviceData = await apiClient.getDeviceDetail(deviceId);
+
+            setDevice(deviceData);
+        } catch (err) {
+            console.error('Failed to fetch device info:', err);
         }
     };
 
@@ -100,6 +102,32 @@ const Device = ({ deviceId }) => {
             alert('Configuration updated successfully');
         } catch (err) {
             alert(`Failed to update config: ${err.message}`);
+        }
+    };
+
+    const formatUptime = (seconds) => {
+        const days = Math.floor(seconds / 86400);
+        const hours = Math.floor((seconds % 86400) / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+
+        if (days > 0) {
+            return `${days}d ${hours}h`;
+        } else if (hours > 0) {
+            return `${hours}h ${minutes}m`;
+        } else {
+            return `${minutes}m`;
+        }
+    };
+
+    const formatBytes = (bytes) => {
+        if (!bytes) return 'N/A';
+        const kb = bytes / 1024;
+        const mb = kb / 1024;
+
+        if (mb >= 1) {
+            return `${mb.toFixed(1)} MB`;
+        } else {
+            return `${kb.toFixed(1)} KB`;
         }
     };
 
@@ -154,8 +182,8 @@ const Device = ({ deviceId }) => {
             <div className="bg-white rounded-lg shadow p-6 mb-6">
                 <div className="flex justify-between items-start">
                     <div>
-                        <h2 className="text-2xl font-bold text-gray-900">{device.name}</h2>
-                        <p className="text-gray-600">{device.plant_name}</p>
+                        <h2 className="text-2xl font-bold text-gray-900">{device.plant_name}</h2>
+                        <p className="text-gray-600">{device.name}</p>
                         <p className="text-sm text-gray-500 mt-1">{device.location}</p>
                     </div>
                     <div className={`px-3 py-1 rounded-full text-white text-sm ${
@@ -163,9 +191,6 @@ const Device = ({ deviceId }) => {
                         device.status === 'offline' ? 'bg-red-500' : 'bg-yellow-500'
                     }`}>
                         {device.status.toUpperCase()}
-                        {isRefreshing && (
-                            <span className="ml-2 inline-block animate-spin">↻</span>
-                        )}
                     </div>
                 </div>
 
@@ -173,11 +198,11 @@ const Device = ({ deviceId }) => {
                 <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                     <div>
                         <span className="text-gray-500">Firmware:</span>
-                        <p className="font-medium">{device.firmware_version}</p>
+                        <p className="font-medium">{device.current_status?.firmware_version || device.firmware_version}</p>
                     </div>
                     <div>
-                        <span className="text-gray-500">Uptime:</span>
-                        <p className="font-medium">{device.uptime_hours.toFixed(1)} hours</p>
+                        <span className="text-gray-500">IP Address:</span>
+                        <p className="font-medium">{device.ip_address || 'N/A'}</p>
                     </div>
                     <div>
                         <span className="text-gray-500">Last Seen:</span>
@@ -188,6 +213,49 @@ const Device = ({ deviceId }) => {
                         <p className="font-medium">{device.total_telemetry_today}</p>
                     </div>
                 </div>
+
+                {/* Extended Status Info */}
+                {device.current_status && (
+                <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div>
+                        <span className="text-gray-500">Internal Temp:</span>
+                        <p className="font-medium">{device.current_status.internal_temperature.toFixed(1)}°C</p>
+                    </div>
+                    <div>
+                        <span className="text-gray-500">Internal Humidity:</span>
+                        <p className="font-medium">{device.current_status.internal_humidity.toFixed(1)}%</p>
+                    </div>
+                    <div>
+                        <span className="text-gray-500">Uptime:</span>
+                        <p className="font-medium">{formatUptime(device.current_status.uptime_seconds)}</p>
+                    </div>
+                    <div>
+                        <span className="text-gray-500">Signal (RSSI):</span>
+                        <p className="font-medium">{device.current_status.rssi} dBm</p>
+                    </div>
+            
+                    {device.current_status.battery_level !== null && (
+                        <div>
+                            <span className="text-gray-500">Battery:</span>
+                            <p className="font-medium">{device.current_status.battery_level}%</p>
+                        </div>
+                    )}
+            
+                    <div>
+                        <span className="text-gray-500">Free Memory:</span>
+                        <p className="font-medium">{formatBytes(device.current_status.free_memory)}</p>
+                    </div>
+            
+                    {device.current_status.error_code !== 0 && (
+                        <div className="col-span-2">
+                            <span className="text-gray-500">Error:</span>
+                            <p className="font-medium text-red-600">
+                                Code {device.current_status.error_code}: {device.current_status.error_message}
+                            </p>
+                        </div>
+                    )}
+                </div>
+                )}
             </div>
 
             {/* Main Content Grid */}
@@ -353,9 +421,9 @@ const Device = ({ deviceId }) => {
                         {showChart && (
                             <div className="mt-4">
                                 <MetricChart
-                                data={telemetryHistory}
-                                metric={selectedMetric}
-                                title={selectedMetric.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+                                    data={telemetryHistory}
+                                    metric={selectedMetric}
+                                    title={selectedMetric.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
                                 />
                             </div>
                         )}
